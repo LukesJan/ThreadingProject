@@ -40,10 +40,10 @@ class PaymentsWorkers(PaymentsCore):
         self.pool_w = ThreadPoolExecutor(max_workers=self.t_payment)
         self.pool_a = ThreadPoolExecutor(max_workers=self.t_antifraud)
 
-        for _ in range(self.t_antifraud):
+        for i in range(self.t_antifraud):
             self.pool_a.submit(self.antifraud_worker)
 
-        for _ in range(self.t_payment):
+        for i in range(self.t_payment):
             self.pool_w.submit(self.payment_worker)
 
     def stop(self):
