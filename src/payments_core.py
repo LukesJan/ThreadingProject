@@ -3,21 +3,9 @@ import threading
 from queue import PriorityQueue
 from src.account import Account
 
-
-def now_ts():
-    """
-     Get the current local timestamp as a formatted string.
-     The format is "YYYY-MM-DD HH:MM:SS".
-     :return: Current local time as a string something like: "2025-11-23 14:05:12"
-     :type: str
-     """
-    return time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
-
-
 class PaymentCoreException(Exception):
     """
     General exception for payment-related errors.
-    Used for validation of transactions, invalid accounts, or other payment issues.
     """
     pass
 

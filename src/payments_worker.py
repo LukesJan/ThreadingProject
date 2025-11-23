@@ -67,28 +67,28 @@ class PaymentsWorkers(PaymentsCore):
         self.validate_transaction(from_acc, to_acc, amount)
         priority = random.randint(1, 5)
 
-        # Assign unique integer transaction ID
+
         with self.tx_lock:
             self.tx_counter += 1
             tx_id = self.tx_counter
 
         tx = {"tx_id": tx_id, "from": from_acc, "to": to_acc, "amount": amount}
-        self.queue_in.put((priority, time.time(), tx))
+        self.queue_in.put((priority, time.time(),tx["tx_id"] ,tx))
 
     def antifraud_worker(self):
-        """Worker loop for antifraud checking."""
         while not self.stop_event.is_set():
             try:
                 item = self.queue_in.get(timeout=0.1)
-                tx = item[2]
+                tx = item[3]
             except Empty:
                 continue
 
             ok, reason = self.antifraud_check(tx)
             tx["ok"] = ok
             tx["reject_reason"] = reason
-            self.pool_w.submit(self.process_payment, tx)
 
+
+            self.process_payment(tx)
     def payment_worker(self):
         """Worker loop for processing payments."""
         while not self.stop_event.is_set():

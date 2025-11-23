@@ -7,7 +7,7 @@ class TestPaymentsCore(unittest.TestCase):
         self.core = PaymentsCore(t_payment=1, t_antifraud=1)
 
     def test_seed_accounts_and_verified_flags(self):
-        self.core.seed_accounts(count=4, balance=1000)
+        self.core.test_accounts(count=4, balance=1000)
 
         self.assertIn(1, self.core.accounts)
         self.assertIn(4, self.core.accounts)
@@ -18,7 +18,7 @@ class TestPaymentsCore(unittest.TestCase):
         self.assertTrue(self.core.accounts[4].verified)
 
     def test_antifraud_check_limits(self):
-        self.core.seed_accounts(count=2, balance=10000)
+        self.core.test_accounts(count=2, balance=10000)
 
         tx = {"from": 1, "to": 2, "amount": 15000}
         ok, reason = self.core.antifraud_check(tx)
@@ -28,7 +28,7 @@ class TestPaymentsCore(unittest.TestCase):
         tx2 = {"from": 2, "to": 1, "amount": 20000}
         ok2, reason2 = self.core.antifraud_check(tx2)
         self.assertTrue(ok2)
-        self.assertEqual(reason2, "")
+        self.assertEqual(reason2, "Completed")
 
 
 if __name__ == "__main__":
