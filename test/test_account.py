@@ -4,6 +4,7 @@ from src.account import Account
 
 class TestAccount(unittest.TestCase):
     def test_account_properties_and_repr(self):
+        """Check that Account initializes correctly and string representation works."""
         a = Account("Alice", 12345, verified=True)
 
         self.assertEqual(a.owner, "Alice")

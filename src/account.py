@@ -9,6 +9,7 @@ class AccountException(Exception):
     """
     pass
 
+
 class Account:
     """
     Represents a bank account.
@@ -28,7 +29,7 @@ class Account:
         :param balance: Initial balance of the account
         :param verified: Whether the account is verified (default: False)
         :raises AccountException: If balance is negative
-        """
+          """
         if balance < 0:
             raise AccountException("Initial balance cannot be negative.")
 
