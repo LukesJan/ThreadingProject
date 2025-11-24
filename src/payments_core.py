@@ -90,9 +90,7 @@ class PaymentsCore:
 
         return True, "Completed"
 
-    # ---------------------------------------------------------
-    # Logging
-    # ---------------------------------------------------------
+
     def log_tx(self, tx: Transaction, status, reason=""):
         """
         Safely log a transaction to the transactions log.

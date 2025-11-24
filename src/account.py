@@ -21,7 +21,7 @@ class Account:
     - lock: Threading lock to ensure thread-safe operations on the account
     """
 
-    def __init__(self, owner: str, balance: float, verified: bool = False):
+    def __init__(self, owner: str, balance: int, verified: bool = False):
         """
         Initialize a new Account instance.
 

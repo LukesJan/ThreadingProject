@@ -3,7 +3,6 @@ import threading
 import random
 from queue import Empty
 from concurrent.futures import ThreadPoolExecutor
-
 from src.payments_core import PaymentsCore
 from src.transaction import Transaction
 
