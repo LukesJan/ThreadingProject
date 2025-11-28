@@ -10,7 +10,6 @@ class Transaction:
 
     Attributes:
         tx_id: Unique transaction ID
-        priority: Priority in the queue (1 = highest, 5 = lowest)
         from_acc: Sender account ID
         to_acc: Receiver account ID
         amount: Amount to be transferred
@@ -19,12 +18,11 @@ class Transaction:
         timestamp: Time of creation, used for FIFO ordering within same priority
     """
 
-    def __init__(self, tx_id: int, priority: int, from_acc: int, to_acc: int, amount: int):
+    def __init__(self, tx_id: int, from_acc: int, to_acc: int, amount: int):
         """
         Initialize a new Transaction instance.
 
         :param tx_id: Unique ID of the transaction
-        :param priority: Priority of the transaction in the queue (1-5)
         :param from_acc: Sender account ID
         :param to_acc: Receiver account ID
         :param amount: Amount to be transferred (must be > 0)
@@ -36,11 +34,7 @@ class Transaction:
         if from_acc == to_acc:
             raise TransactionException("Sender and receiver must be different")
 
-        if not (1 <= priority <= 5):
-            raise TransactionException("Priority must be between 1 and 5")
-
         self.tx_id = tx_id
-        self.priority = priority
         self.from_acc = from_acc
         self.to_acc = to_acc
         self.amount = amount
@@ -48,17 +42,6 @@ class Transaction:
         self.reason = "Completed"
         self.timestamp = time.time()
 
-    def __lt__(self, other):
-        """
-        Compare transactions for ordering in priority queue.
-
-        :param other: Another Transaction instance to compare with
-        :return: True if this transaction has higher priority
-                 or earlier timestamp if priorities are equal
-        """
-        if self.priority != other.priority:
-            return self.priority < other.priority
-        return self.timestamp < other.timestamp
 
     def reject(self, reason: str):
         """

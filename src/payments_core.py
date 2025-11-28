@@ -1,6 +1,6 @@
 import time
 import threading
-from queue import PriorityQueue
+from queue import Queue
 from src.account import Account
 from src.transaction import Transaction
 
@@ -37,8 +37,8 @@ class PaymentsCore:
             :param max: Maximum size of the incoming transaction queue.
             :type max: int
 
-            Attributes initialized:
-            - queue_in: PriorityQueue to hold incoming transactions.
+            Attributes:
+            - queue_payment: PriorityQueue to hold incoming transactions.
             - stop_event: threading.Event used to signal worker threads to stop.
             - accounts: Dictionary mapping account IDs to Account instances.
             - accounts_lock: Lock to synchronize access to accounts dictionary.
@@ -49,7 +49,7 @@ class PaymentsCore:
         self.t_payment = t_payment
         self.t_antifraud = t_antifraud
 
-        self.queue_in = PriorityQueue(maxsize=max)
+        self.queue_payment = Queue(maxsize=max)
         self.stop_event = threading.Event()
 
         self.accounts = {}
