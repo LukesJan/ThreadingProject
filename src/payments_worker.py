@@ -1,49 +1,51 @@
-import time
-import threading
-import random
-from queue import Empty
+from queue import Queue, Empty
 from concurrent.futures import ThreadPoolExecutor
-from src.payments_core import PaymentsCore
+import threading
+import time
 from src.transaction import Transaction
-
-
-class PaymentWorkersException(Exception):
-    """General exception for payment-related errors."""
-    pass
+from src.payments_core import PaymentsCore
 
 
 class PaymentsWorkers(PaymentsCore):
     """
-    Worker class for concurrent transaction processing using threads.
-
-    Responsibilities:
-    - Run antifraud and payment workers in separate threads
-    - Perform atomic transfers between accounts
-    - Log all transaction statuses
-    - Track number of processed transactions
+    Payment processing system with antifraud checks and concurrency support
+    Attributes:
+        queue_antifraud (Queue): Queue for transactions after antifraud check
+        processed_count (int): Counter of processed transactions
+        count_lock (Lock): Lock for thread-safe updates of processed_count
+        tx_counter (int): Counter for generating unique transaction IDs
+        tx_lock (Lock): Lock for thread-safe incrementing of tx_counter
+        pool_a (ThreadPoolExecutor): Thread pool for antifraud workers
+        pool_w (ThreadPoolExecutor): Thread pool for payment workers
     """
-
     def __init__(self, t_payment=4, t_antifraud=2):
         """
-        Initialize PaymentsWorkers instance.
-        :param t_payment: Number of payment worker threads
-        :param t_antifraud: Number of antifraud worker threads
+        Initialize PaymentsWorkers
+        Arguments:
+            t_payment (int): Number of concurrent payment worker threads
+            t_antifraud (int): Number of concurrent antifraud worker threads
         """
         super().__init__(t_payment, t_antifraud)
 
+        self.queue_antifraud = Queue()
+
         self.processed_count = 0
         self.count_lock = threading.Lock()
-        self.pool_w = None
-        self.pool_a = None
+
         self.tx_counter = 0
         self.tx_lock = threading.Lock()
 
+        self.pool_a = None
+        self.pool_w = None
 
     def start(self):
-        """Start all worker threads."""
+        """
+        Start worker threads for antifraud and payment processing
+        """
         self.stop_event.clear()
-        self.pool_w = ThreadPoolExecutor(max_workers=self.t_payment)
+
         self.pool_a = ThreadPoolExecutor(max_workers=self.t_antifraud)
+        self.pool_w = ThreadPoolExecutor(max_workers=self.t_payment)
 
         for i in range(self.t_antifraud):
             self.pool_a.submit(self.antifraud_worker)
@@ -52,67 +54,100 @@ class PaymentsWorkers(PaymentsCore):
             self.pool_w.submit(self.payment_worker)
 
     def stop(self):
-        """Stop all worker threads."""
+        """
+        Stop all worker threads and shutdown thread pools.
+        """
         self.stop_event.set()
         time.sleep(0.2)
 
-        if self.pool_w:
-            self.pool_w.shutdown(wait=True)
         if self.pool_a:
             self.pool_a.shutdown(wait=True)
+        if self.pool_w:
+            self.pool_w.shutdown(wait=True)
 
     def submit(self, from_acc, to_acc, amount):
         """
-       Submit a transaction with random priority (1-5) and unique integer tx_id.
-       :param from_acc: Sender account ID
-       :param to_acc: Recipient account ID
-       :param amount: Transaction amount
-       :raises PaymentWorkersException: if accounts do not exist or amount <= 0
-       """
+        Submit a new transaction for processing
+        Arguments:
+          from_acc (int): Sender account ID
+          to_acc (int): Receiver account ID
+          amount (int): Amount to transfer
+        """
         self.validate_transaction(from_acc, to_acc, amount)
-
-        priority = random.randint(1, 5)
-
 
         with self.tx_lock:
             self.tx_counter += 1
             tx_id = self.tx_counter
 
-        tx = Transaction(tx_id, priority, from_acc, to_acc, amount)
+        tx = Transaction(tx_id, from_acc, to_acc, amount)
 
+        with self.log_lock:
+            self.transactions_log.append({
+                "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
+                "tx_id": tx.tx_id,
+                "from": from_acc,
+                "to": to_acc,
+                "amount": amount,
+                "status": "pending",
+                "reason": "processing"
+            })
 
-        self.queue_in.put((priority, time.time(), tx.tx_id, tx))
+            def delay():
+                time.sleep(2)
+                self.queue_payment.put((tx.timestamp, tx.tx_id, tx))
+
+            threading.Thread(target=delay).start()
 
 
     def antifraud_worker(self):
+        """
+        Continuously checks transactions from queue_payment
+        Transactions that fail antifraud check are marked rejected
+        All transactions are pushed to queue_antifraud for payment processing
+        """
         while not self.stop_event.is_set():
             try:
-                item = self.queue_in.get(timeout=0.1)
-                tx = item[3]
+                i, i, tx = self.queue_payment.get(timeout=0.1)
             except Empty:
                 continue
 
             ok, reason = self.antifraud_check(tx)
-
             if not ok:
                 tx.reject(reason)
 
-            self.process_payment(tx)
+            self.queue_antifraud.put((tx.timestamp, tx.tx_id, tx))
 
     def payment_worker(self):
-        """Worker loop for processing payments."""
+        """
+        Worker function that continuously processes transactions from queue_antifraud
+        Calls process_payment for each transaction
+        """
         while not self.stop_event.is_set():
-            time.sleep(0.1)
+            try:
+                i, i, tx = self.queue_antifraud.get(timeout=0.1)
+            except Empty:
+                continue
+
+            self.process_payment(tx)
 
     def process_payment(self, tx: Transaction):
-        """Process a single transaction and log the result."""
+        """
+        Process a single transaction: update balances or reject/decline
+            - Updates balances with locking
+            - Logs transaction result
+            - Increment processed_count after processing
+        Arguments:
+            tx (Transaction): Transaction to process.
+            """
         try:
+
             if not tx.ok:
                 self.log_tx(tx, "rejected", tx.reason)
                 return
 
             from_acc = self.accounts[tx.from_acc]
             to_acc = self.accounts[tx.to_acc]
+
             acc1, acc2 = sorted([from_acc, to_acc], key=id)
             with acc1.lock:
                 with acc2.lock:
@@ -121,9 +156,10 @@ class PaymentsWorkers(PaymentsCore):
                         return
                     from_acc.balance -= tx.amount
                     to_acc.balance += tx.amount
-            self.log_tx(tx, "approved", "completed")
-            with self.count_lock:
-                self.processed_count += 1
 
-        except PaymentWorkersException:
+            self.log_tx(tx, "approved", "completed")
+        except Exception:
             self.log_tx(tx, "rejected", "internal_error")
+
+        with self.count_lock:
+            self.processed_count += 1
