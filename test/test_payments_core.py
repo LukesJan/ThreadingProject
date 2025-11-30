@@ -24,12 +24,12 @@ class TestPaymentsCore(unittest.TestCase):
         """Check that antifraud rules are applied correctly for verified/unverified accounts."""
         self.core.test_accounts(count=2, balance=10000)
 
-        tx1 = Transaction(tx_id=1, priority=1, from_acc=1, to_acc=2, amount=15000)
+        tx1 = Transaction(tx_id=1, from_acc=1, to_acc=2, amount=15000)
         ok, reason = self.core.antifraud_check(tx1)
         self.assertFalse(ok)
         self.assertEqual(reason, "unverified_limit")
 
-        tx2 = Transaction(tx_id=2, priority=1, from_acc=2, to_acc=1, amount=20000)
+        tx2 = Transaction(tx_id=2, from_acc=2, to_acc=1, amount=20000)
         ok2, reason2 = self.core.antifraud_check(tx2)
         self.assertTrue(ok2)
         self.assertEqual(reason2, "Completed")
