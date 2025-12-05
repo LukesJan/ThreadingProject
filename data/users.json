@@ -1,0 +1,56 @@
+{
+    "admin": {
+        "id": 0,
+        "password": "8c6976e5b5410415bde908bd4dee15dfb167a9c873fc4bb8a81f6f2ab448a918",
+        "balance": 0,
+        "verified": true,
+        "is_admin": true
+    },
+    "User1": {
+        "id": 1,
+        "password": "e6c3da5b206634d7f3f3586d747ffdb36b5c675757b380c6a5fe5c570c714349",
+        "balance": 90005,
+        "verified": false,
+        "is_admin": false
+    },
+    "User2": {
+        "id": 2,
+        "password": "1ba3d16e9881959f8c9a9762854f72c6e6321cdd44358a10a4e939033117eab9",
+        "balance": 125000,
+        "verified": true,
+        "is_admin": false
+    },
+    "ja": {
+        "id": 3,
+        "password": "3702fc1866630796050c50e9c829bd32fde7cc4c883f28e3e4ca430307c485b0",
+        "balance": 15000,
+        "verified": true,
+        "is_admin": false
+    },
+    "jaa": {
+        "id": 4,
+        "password": "01a0b9e10c4935e7f21e55b4ded01ef756dfd450d869f49a4bee4eea7786b435",
+        "balance": 120000,
+        "verified": true,
+        "is_admin": false
+    },
+    "lucka": {
+        "id": 5,
+        "password": "6b51d431df5d7f141cbececcf79edf3dd861c3b4069f0b11661a3eefacbba918",
+        "balance": 30000,
+        "verified": false,
+        "is_admin": false
+    },
+    "hhh": {
+        "id": 6,
+        "password": "a665a45920422f9d417e4867efdc4fb8a04a1f3fff1fa07e998e86f7f7a27ae3",
+        "balance": 15005,
+        "verified": true
+    },
+    "jan": {
+        "id": 7,
+        "password": "6a0ac0fd972c325d6ca5512b67a5e0ad996c4a3e9b59971d125164e6d4db1a1c",
+        "balance": 10,
+        "verified": true
+    }
+}

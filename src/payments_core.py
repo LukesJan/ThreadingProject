@@ -1,9 +1,9 @@
 import time
 import threading
 from queue import Queue
-from src.account import Account
 from src.transaction import Transaction
-
+import json
+import os
 
 class PaymentCoreException(Exception):
     """
@@ -23,7 +23,7 @@ class PaymentsCore:
     - Log all transactions safely
     - Validate transactions before processing
     """
-    def __init__(self, t_payment=4, t_antifraud=2, max=300):
+    def __init__(self, config, user_credentials,t_payment=4, t_antifraud=2, max=300):
         """
             Initialize the PaymentsCore instance.
 
@@ -45,7 +45,8 @@ class PaymentsCore:
             - transactions_log: List to store all transaction records.
             - log_lock: Lock to synchronize access to transactions_log.
             """
-
+        self.config = config
+        self.user_credentials = user_credentials
         self.t_payment = t_payment
         self.t_antifraud = t_antifraud
 
@@ -58,20 +59,24 @@ class PaymentsCore:
         self.transactions_log = []
         self.log_lock = threading.Lock()
 
+        self.load_transactions()
 
-    def test_accounts(self, count=5, balance=50000):
+    def load_transactions(self):
         """
-        Creates test accounts.
-        Every even account is verified.
-
-        :param count: Number of accounts to create
-        :param balance: Initial balance for each account
+        Load all transactions from the transactions log file into internal log.
         """
-        with self.accounts_lock:
-            for i in range(1, count + 1):
-                verified = (i % 2 == 0)
-                self.accounts[i] = Account(f"User{i}", balance, verified)
-
+        self.transactions_log = []
+        try:
+            if os.path.exists(self.config["transactions_log_file"]):
+                with open(self.config["transactions_log_file"], "r") as f:
+                    for line in f:
+                        try:
+                            entry = json.loads(line.strip())
+                            self.transactions_log.append(entry)
+                        except json.JSONDecodeError:
+                            pass
+        except Exception as e:
+            print(f"Error loading transactions log: {e}")
 
     def antifraud_check(self, tx: Transaction):
         """
@@ -90,15 +95,7 @@ class PaymentsCore:
 
         return True, "Completed"
 
-
     def log_tx(self, tx: Transaction, status, reason=""):
-        """
-        Safely log a transaction to the transactions log.
-
-        :param tx: Transaction
-        :param status: Transaction status ("approved", "declined", "rejected")
-        :param reason: Reason for rejection if applicable
-        """
         entry = {
             "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
             "tx_id": tx.tx_id,
@@ -112,6 +109,21 @@ class PaymentsCore:
         with self.log_lock:
             self.transactions_log.append(entry)
 
+        if status == "approved":
+            for username, data in self.user_credentials.items():
+                acc = self.accounts.get(data["id"])
+                if acc:
+                    data["balance"] = acc.balance
+
+            with open(self.config["users_file"], "w") as f:
+                json.dump(self.user_credentials, f, indent=4)
+
+        try:
+            os.makedirs(os.path.dirname(self.config["transactions_log_file"]), exist_ok=True)
+            with open(self.config["transactions_log_file"], "a") as f:
+                f.write(json.dumps(entry) + "\n")
+        except Exception as e:
+            print("Error writing to transactions log:", e)
 
     def validate_transaction(self, from_acc, to_acc, amount):
         """

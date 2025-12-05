@@ -4,6 +4,7 @@ import threading
 import time
 from src.transaction import Transaction
 from src.payments_core import PaymentsCore
+from src.account import Account
 
 
 class PaymentsWorkers(PaymentsCore):
@@ -18,14 +19,15 @@ class PaymentsWorkers(PaymentsCore):
         pool_a (ThreadPoolExecutor): Thread pool for antifraud workers
         pool_w (ThreadPoolExecutor): Thread pool for payment workers
     """
-    def __init__(self, t_payment=4, t_antifraud=2):
+
+    def __init__(self, config, user_credentials, t_payment=4, t_antifraud=2):
         """
         Initialize PaymentsWorkers
         Arguments:
             t_payment (int): Number of concurrent payment worker threads
             t_antifraud (int): Number of concurrent antifraud worker threads
         """
-        super().__init__(t_payment, t_antifraud)
+        super().__init__(config, user_credentials, t_payment, t_antifraud)
 
         self.queue_antifraud = Queue()
 
@@ -37,6 +39,13 @@ class PaymentsWorkers(PaymentsCore):
 
         self.pool_a = None
         self.pool_w = None
+
+        with self.accounts_lock:
+            for username, data in self.user_credentials.items():
+                acc_id = data["id"]
+                balance = data.get("balance", 0)
+                verified = data.get("verified", False)
+                self.accounts[acc_id] = Account(owner=username, balance=balance, verified=verified)
 
     def start(self):
         """
@@ -107,7 +116,7 @@ class PaymentsWorkers(PaymentsCore):
         """
         while not self.stop_event.is_set():
             try:
-                i, i, tx = self.queue_payment.get(timeout=0.1)
+                i, y, tx = self.queue_payment.get(timeout=0.1)
             except Empty:
                 continue
 
@@ -124,7 +133,7 @@ class PaymentsWorkers(PaymentsCore):
         """
         while not self.stop_event.is_set():
             try:
-                i, i, tx = self.queue_antifraud.get(timeout=0.1)
+                i, y, tx = self.queue_antifraud.get(timeout=0.1)
             except Empty:
                 continue
 

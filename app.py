@@ -1,39 +1,75 @@
 import tkinter as tk
 from tkinter import messagebox, ttk
 import json
-
+import os
+import time
+import hashlib
 from src.payments_worker import PaymentsWorkers
 from src.account import Account
+
+def hash_password(password: str) -> str:
+    """
+    Returns the SHA-256 hash of the given password.
+    """
+    return hashlib.sha256(password.encode("utf-8")).hexdigest()
 
 class App:
 
     def __init__(self, root):
+        """
+        Initializes the application.
+        """
         self.root = root
         self.root.title("Payments GUI")
         self.root.geometry("800x700")
         self.user_account_id = None
         self.is_admin = False
 
+        with open("config.json", "r") as f:
+            self.config = json.load(f)
+        os.makedirs(self.config["data_folder"], exist_ok=True)
+        os.makedirs(os.path.dirname(self.config["transactions_log_file"]), exist_ok=True)
+        os.makedirs(os.path.dirname(self.config["error_log_file"]), exist_ok=True)
 
-        self.user_credentials = {
-            "User1": (1, "pass1"),
-            "User2": (2, "pass2"),
-            "User3": (3, "pass3"),
-            "User4": (4, "pass4"),
-            "User5": (5, "pass5")
-        }
+        self.load_users()
+        self.p = PaymentsWorkers(self.config, self.user_credentials)
+        with self.p.accounts_lock:
+            for username, data in self.user_credentials.items():
+                acc_id = data["id"]
+                balance = data.get("balance", 0)
+                verified = data.get("verified", False)
+                self.p.accounts[acc_id] = Account(owner=username, balance=balance, verified=verified)
 
-        self.p = PaymentsWorkers()
-        self.p.test_accounts(5, 50000)
-        self.load_sample_transactions()
+        self.p.load_transactions()
+        self.p.tx_counter = len(self.p.transactions_log)
         self.p.start()
-
-
-
         self.root.protocol("WM_DELETE_WINDOW", self.on_close)
-
         self.show_login()
 
+    def load_users(self):
+        try:
+            with open(self.config["users_file"], "r") as f:
+                self.user_credentials = json.load(f)
+        except FileNotFoundError:
+            self.user_credentials = {}
+            self.log_error("users.json not found, starting with empty user list")
+        except Exception as e:
+            self.user_credentials = {}
+            self.log_error(f"Cannot load users.json: {e}")
+
+    def save_users(self):
+        try:
+            with open(self.config["users_file"], "w") as f:
+                json.dump(self.user_credentials, f, indent=4)
+        except Exception as e:
+            self.log_error(f"Cannot save users.json: {e}")
+
+    def log_error(self, msg):
+        try:
+            with open(self.config["error_log_file"], "a") as f:
+                f.write(f"{time.strftime('%Y-%m-%d %H:%M:%S')}  {msg}\n")
+        except:
+            pass
 
     def show_login(self):
         """
@@ -71,32 +107,16 @@ class App:
             self.update_accounts()
         else:
             creds = self.user_credentials.get(username)
-            if creds and creds[1] == password:
-                self.user_account_id = creds[0]
+            if creds and creds["password"] == hash_password(password):
+                self.user_account_id = creds["id"]
                 messagebox.showinfo("Login", f"Logged in as {username}")
                 self.login_frame.destroy()
                 self.build_ui(user_mode=True)
                 self.update_log()
                 self.update_accounts()
             else:
+                self.log_error(f"Failed login attempt for username: {username}")
                 messagebox.showerror("Login Failed", "User not found or wrong password")
-
-
-    def load_sample_transactions(self):
-        """
-        Loads sample transactions.
-        """
-        for i in range(1, 4):
-            self.p.transactions_log.append({
-                "timestamp": f"2025-11-29 12:0{i}:00",
-                "tx_id": i,
-                "from": 1,
-                "to": 2,
-                "amount": 1000*i,
-                "status": "approved",
-                "reason": "completed"
-            })
-
 
     def build_ui(self, user_mode=False):
         """
@@ -137,7 +157,6 @@ class App:
 
             tk.Button(frame_tx, text="Send", command=self.send_tx).grid(row=3, column=0, columnspan=2, pady=5)
 
-
         if self.is_admin:
             frame_accounts = tk.LabelFrame(self.root, text="Accounts", padx=10, pady=10)
             frame_accounts.pack(fill="both", padx=10, pady=10, expand=True)
@@ -147,7 +166,6 @@ class App:
             for col in columns:
                 self.accounts_table.heading(col, text=col.capitalize())
             self.accounts_table.pack(fill="both", expand=True)
-
 
             frame_new_acc = tk.LabelFrame(self.root, text="Add New Account", padx=10, pady=10)
             frame_new_acc.pack(fill="x", padx=10, pady=10)
@@ -162,12 +180,10 @@ class App:
             self.e_balance = tk.Entry(frame_new_acc)
             self.e_verified = tk.Entry(frame_new_acc)
 
-
             self.e_owner.grid(row=0, column=1)
             self.e_password_new.grid(row=1, column=1)
             self.e_balance.grid(row=2, column=1)
             self.e_verified.grid(row=3, column=1)
-
 
             tk.Button(frame_new_acc, text="Add Account", command=self.add_account).grid(row=4, column=0, columnspan=2, pady=5)
 
@@ -177,16 +193,10 @@ class App:
         self.log_box = tk.Text(frame_log, height=15)
         self.log_box.pack(fill="both", expand=True)
 
-
     def get_user_balance(self):
-        """
-        Return the balance of the currently logged-in user
-        :return: balance of the currently logged-in user
-        """
         with self.p.accounts_lock:
             acc = self.p.accounts.get(self.user_account_id)
             return acc.balance if acc else 0
-
 
     def logout(self):
         """
@@ -198,57 +208,60 @@ class App:
             widget.destroy()
         self.show_login()
 
-
     def send_tx(self):
-        """
-        Submit a new transaction from the logged-in user
-        - Read values from input fields
-        - Call PaymentsWorkers.submit()
-        - Display success or error
-        """
         try:
             t = int(self.e_to.get())
             amt = int(self.e_amount.get())
             self.p.submit(self.user_account_id, t, amt)
             messagebox.showinfo("OK", "Transaction submitted")
         except Exception as e:
+            self.log_error(str(e))
             messagebox.showerror("Error", str(e))
-
 
     def add_account(self):
         """
         Add a new account
         - Validate input fields
-        - Create new Account and assignes ID
+        - Create new Account and assign ID
         """
         try:
-            owner = self.e_owner.get()
+            owner = self.e_owner.get().strip()
             balance = int(self.e_balance.get())
             verified = bool(int(self.e_verified.get()))
             password = self.e_password_new.get().strip()
 
             if not owner:
+                self.log_error("Owner name cannot be empty")
                 messagebox.showerror("Error", "Owner name cannot be empty")
                 return
 
             if not password:
+                self.log_error("Password cannot be empty")
                 messagebox.showerror("Error", "Password cannot be empty")
                 return
 
             if owner in self.user_credentials:
+                self.log_error(f"Username '{owner}' already exists")
                 messagebox.showerror("Error", f"Username '{owner}' already exists")
                 return
 
             with self.p.accounts_lock:
-                new_id = max(self.p.accounts.keys()) + 1
+                new_id = max(self.p.accounts.keys(), default=0) + 1
                 self.p.accounts[new_id] = Account(owner, balance, verified)
 
-
-            self.user_credentials[owner] = (new_id, password)
+            self.user_credentials[owner] = {
+                "id": new_id,
+                "password": hash_password(password),
+                "balance": balance,
+                "verified": verified
+            }
+            self.save_users()
 
             messagebox.showinfo("OK", f"Account created with ID={new_id}")
             self.update_accounts()
+
         except Exception as e:
+            self.log_error(str(e))
             messagebox.showerror("Error", str(e))
 
     def update_accounts(self):
@@ -265,7 +278,6 @@ class App:
             for acc_id, acc in self.p.accounts.items():
                 self.accounts_table.insert("", "end", values=(acc_id, acc.owner, acc.balance, acc.verified))
         self.root.after(1000, self.update_accounts)
-
 
     def update_log(self):
         """
@@ -295,14 +307,12 @@ class App:
 
         self.root.after(500, self.update_log)
 
-
     def on_close(self):
         """
         Safely shut down the worker threads and close the application
         """
         self.p.stop()
         self.root.destroy()
-
 
 
 root = tk.Tk()

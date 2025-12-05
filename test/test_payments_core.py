@@ -1,17 +1,49 @@
 import unittest
 from src.payments_core import PaymentsCore
 from src.transaction import Transaction
-
+from src.account import Account
+import os
+import json
 
 class TestPaymentsCore(unittest.TestCase):
 
     def setUp(self):
-        self.core = PaymentsCore(t_payment=1, t_antifraud=1)
+        """
+        Config for tests
+        """
+        self.config = {
+            "transactions_log_file": "test_transactions.log",
+            "users_file": "test_users.json",
+            "data_folder": "test_data",
+            "error_log_file": "test_error.log"
+        }
+        self.user_credentials = {
+            1: {"id": 1, "balance": 1000, "verified": False, "password": "pass"},
+            2: {"id": 2, "balance": 1000, "verified": True, "password": "pass"},
+            3: {"id": 3, "balance": 1000, "verified": False, "password": "pass"},
+            4: {"id": 4, "balance": 1000, "verified": True, "password": "pass"}
+        }
 
-    def test_seed_accounts_and_verified_flags(self):
-        """Check that test accounts are seeded with correct verified flags."""
-        self.core.test_accounts(count=4, balance=1000)
+        self.core = PaymentsCore(self.config, self.user_credentials)
 
+
+        with self.core.accounts_lock:
+            for uid, data in self.user_credentials.items():
+                self.core.accounts[data["id"]] = Account(
+                    owner=f"User{uid}",
+                    balance=data["balance"],
+                    verified=data["verified"]
+                )
+
+    def tearDown(self):
+
+        if os.path.exists(self.config["transactions_log_file"]):
+            os.remove(self.config["transactions_log_file"])
+        if os.path.exists(self.config["users_file"]):
+            os.remove(self.config["users_file"])
+
+    def test_accounts_seeded_correctly(self):
+        """Check that accounts have correct verified flags."""
         self.assertIn(1, self.core.accounts)
         self.assertIn(4, self.core.accounts)
 
@@ -21,9 +53,7 @@ class TestPaymentsCore(unittest.TestCase):
         self.assertTrue(self.core.accounts[4].verified)
 
     def test_antifraud_check_limits(self):
-        """Check that antifraud rules are applied correctly for verified/unverified accounts."""
-        self.core.test_accounts(count=2, balance=10000)
-
+        """Check that antifraud rules are applied correctly."""
         tx1 = Transaction(tx_id=1, from_acc=1, to_acc=2, amount=15000)
         ok, reason = self.core.antifraud_check(tx1)
         self.assertFalse(ok)
