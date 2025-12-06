@@ -1,0 +1,6 @@
+{
+  "users_file": "data/users.json",
+  "transactions_log_file": "logs/transactions.log",
+  "error_log_file": "logs/error.log",
+  "data_folder": "data"
+}

@@ -1,0 +1,8 @@
+2025-12-06 11:19:49  Failed login attempt for username: User1
+2025-12-06 11:27:09  Username 'ja' already exists
+2025-12-06 11:27:11  Username 'ja' already exists
+2025-12-06 12:46:29  Failed login attempt for username: User1
+2025-12-06 12:46:40  Failed login attempt for username: admin
+2025-12-06 12:47:03  Failed login attempt for username: admin
+2025-12-07 15:21:44  Failed login attempt for username: jjj
+2025-12-07 19:26:22  invalid literal for int() with base 10: 'a'
